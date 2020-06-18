@@ -62,6 +62,10 @@ def isAdmin(ciphertext, key, iv):
     """ Returns True or False if admin=true is in ciphertext. """
 
     plaintext = AES_CBC_decrypt(ciphertext, key, iv)
+
+    print("\nDecrypted string:")
+    print(bytes(plaintext))
+
     pos = plaintext.find(b';admin=true;')
     if pos == -1:
         return False
@@ -92,8 +96,8 @@ def challenge_16():
     for instance if I modify EE by FE, the decryped block 2 will be:
     62 61 61 ... 61
 
-    Thus, to replace characters in a block of plaintext, we have to 'zero' these characters via the previous
-    block of ciphertext:
+    Thus, to replace characters the block 3 of plaintext, we have to 'zero' these characters using the previous
+    ciphertext block:
         ciphertext_1 = ciphertext_1 xor '61 61 61 ... 61'
     Then we insert the sting we want (padded to 16-bytes):
         ciphertext_1 = ciphertext_1 xor ';admin=true;____'
@@ -102,21 +106,19 @@ def challenge_16():
     key = get_random_bytes(16)
     iv = copy(key)
 
-    aaa = b'aaaaaaaaaaaaaaaa'  # 16 bytes
-    aaa = aaa + aaa + aaa
+    plaintext_block = b'aaaaaaaaaaaaaaaa'  # 16 bytes
+    plaintext = 3*plaintext_block
 
-    ciphertext = f1(aaa, key, iv)
-    printHEX(ciphertext)
+    ciphertext = f1(plaintext, key, iv)
 
     # attack
     adminString = b';admin=true;0000'  # 16-bytes block
-    to_xor = xor(b'aaaaaaaaaaaaaaaa', adminString)
+    temp = xor(plaintext_block, adminString)
     start = 3 * AES128_BLOCKSIZE
-    # ciphertext[start:end] = xor(ciphertext[start:end],to_xor)
-    ciphertext[start:start + AES128_BLOCKSIZE] = xor(ciphertext[start:start + AES128_BLOCKSIZE], to_xor)
+    stop = start + AES128_BLOCKSIZE
+    ciphertext[start:stop] = xor(ciphertext[start:stop], temp)
 
-    print()
-    print(isAdmin(ciphertext, key, iv))
+    print("\nisAdmin: " , isAdmin(ciphertext, key, iv))
 
 if __name__ == "__main__":
     challenge_16()
