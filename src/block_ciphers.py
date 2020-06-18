@@ -129,7 +129,10 @@ def PKCS7_validation():
 
 def printHEX(array):
     for i in range(len(array)):
+        if i%AES128_BLOCKSIZE == 0:
+            print(' ', end='')
         print('%02X' % array[i], end='')
+    print() #newline
 
 def test_AES_CBC():
     PKCS7_validation()

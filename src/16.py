@@ -30,8 +30,10 @@ from block_ciphers import PKCS7_doPadding
 from block_ciphers import AES_CBC_encrypt
 from block_ciphers import AES_CBC_decrypt
 from block_ciphers import printHEX
+from block_ciphers import AES128_BLOCKSIZE
 
-def f1(input, key,iv):
+
+def f1(input, key, iv):
     """ Cipher a user input with prepended and appended strings.
 
      The characters ';' and '=' are removed from the user input so that
@@ -43,40 +45,78 @@ def f1(input, key,iv):
     # # Quote out ; and = from the input
     while ord(';') in input or ord('=') in input:
         i = input.find(ord(';'))
-        if i!=-1: input.pop(i)
+        if i != -1: input.pop(i)
         i = input.find(ord('='))
-        if i!=-1: input.pop(i)
+        if i != -1: input.pop(i)
 
-    input = bytearray("comment1=cooking%20MCs;userdata=","ASCII") + input
-    input += bytearray(";comment2=%20like%20a%20pound%20of%20bacon","ASCII")
-
-    #TODO: remove
-    print(input)
+    input = bytearray("comment1=cooking%20MCs;userdata=", "ASCII") + input
+    input += bytearray(";comment2=%20like%20a%20pound%20of%20bacon", "ASCII")
 
     padded_plaintext = PKCS7_doPadding(input)
-    ciphertext = AES_CBC_encrypt(padded_plaintext,key,iv)
+    ciphertext = AES_CBC_encrypt(padded_plaintext, key, iv)
 
-    return bytes(ciphertext)
-    # return ciphertext
+    return ciphertext
 
-def f2(ciphertext, key,iv):
+
+def isAdmin(ciphertext, key, iv):
     """ Returns True or False if admin=true is in ciphertext. """
 
-    plaintext = AES_CBC_decrypt(ciphertext,key,iv)
-
+    plaintext = AES_CBC_decrypt(ciphertext, key, iv)
     pos = plaintext.find(b';admin=true;')
-
     if pos == -1:
         return False
     else:
         return True
 
-if __name__ == "__main__":
+
+def xor(l1, l2):
+    assert (len(l1) == len(l2))
+    L3 = bytes([l1[i] ^ l2[i] for i in range(len(l1))])
+    return L3
+
+def challenge_16():
+    """ CBC bitflipping attacks
+
+    To break the AES-CBC, I encrypt a dummy string over a few AES128 blocks:
+            block 0             block 1         block 2
+        aaaaaaaaaaaaaaaa | aaaaaaaaaaaaaaaa | aaaaaaaaaaaaaaaa
+
+    Which is in hex notation:
+        61 61 61 ...  61 | 61 61 61 ...  61  | 61 61 61 ... 61
+
+    Once encrypted (random values):
+            ciphertext_0                    ciphertext_1                    ciphertext_2
+    1809D7BC1F63E3F5ACB460B6DAE4E891 EEBE6389AC509D5A5EC76B91D145965C 96332E27F13F24866CB1C53A6A5972C7
+
+    We will modify the ciphertext: each bit modifed in the encrypted ciphertext_1 will be seen in the decrypted block 2,
+    for instance if I modify EE by FE, the decryped block 2 will be:
+    62 61 61 ... 61
+
+    Thus, to replace characters in a block of plaintext, we have to 'zero' these characters via the previous
+    block of ciphertext:
+        ciphertext_1 = ciphertext_1 xor '61 61 61 ... 61'
+    Then we insert the sting we want (padded to 16-bytes):
+        ciphertext_1 = ciphertext_1 xor ';admin=true;____'
+    """
+
     key = get_random_bytes(16)
     iv = copy(key)
 
-    ciphertext = f1(b"admin=true", key, iv)
-    print(ciphertext)
-    deciphered  = f2(ciphertext, key, iv)
-    print(deciphered)
+    aaa = b'aaaaaaaaaaaaaaaa'  # 16 bytes
+    aaa = aaa + aaa + aaa
 
+    ciphertext = f1(aaa, key, iv)
+    printHEX(ciphertext)
+
+    # attack
+    adminString = b';admin=true;0000'  # 16-bytes block
+    to_xor = xor(b'aaaaaaaaaaaaaaaa', adminString)
+    start = 3 * AES128_BLOCKSIZE
+    # ciphertext[start:end] = xor(ciphertext[start:end],to_xor)
+    ciphertext[start:start + AES128_BLOCKSIZE] = xor(ciphertext[start:start + AES128_BLOCKSIZE], to_xor)
+
+    print()
+    print(isAdmin(ciphertext, key, iv))
+
+if __name__ == "__main__":
+    challenge_16()

@@ -11,7 +11,7 @@ To run a challenge, eg. the 16-th:
 
 1. Go to the project root directory:
 
-     `$ cd Cryptopals`
+     `$ cd CryptopalsPython`
 
 1. Activate the Python virtual environment: 
 
