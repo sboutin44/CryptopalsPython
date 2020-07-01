@@ -104,7 +104,7 @@ def AES_CBC_decrypt(ciphertext,key,IV):
     return plaintext
 
 
-def isPKCS7padded(input):
+def PKCS7_validate(input):
     padding_value = input[len(input)-1]
     for i in range(padding_value):
         if (input[len(input)-1-i] != padding_value):
@@ -116,7 +116,7 @@ def printRawBytes(string):
     for i in range(len(string)):
         print('%02X ' % ord(string[i]),end ='')
 
-def PKCS7_validation():
+def PKCS7_test():
     s0 = b"ICE ICE BABY"
     s1 = b"ICE ICE BABY\x04\x04\x04\x04"
     s2 = b"ICE ICE BABY\x05\x05\x05\x05"
@@ -135,7 +135,7 @@ def printHEX(array):
     print() #newline
 
 def test_AES_CBC():
-    PKCS7_validation()
+    PKCS7_test()
 
     key = bytearray('\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', "ASCII")
     iv = copy(key)

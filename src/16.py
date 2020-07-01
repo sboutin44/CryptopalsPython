@@ -99,7 +99,7 @@ def challenge_16():
     Thus, to replace characters the block 3 of plaintext, we have to 'zero' these characters using the previous
     ciphertext block:
         ciphertext_1 = ciphertext_1 xor '61 61 61 ... 61'
-    Then we insert the sting we want (padded to 16-bytes):
+    Then we insert the string we want (padded to 16-bytes):
         ciphertext_1 = ciphertext_1 xor ';admin=true;____'
     """
 
