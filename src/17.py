@@ -84,61 +84,67 @@ def challenge_17():
     # plaintext = bytes(Strings[n],"ASCII")
 
     b0 = b'aaaaaaaaaaaaaaaa'
-    b1 = b'aaaaaaaaaaaa'
+    # b1 = b'aaaaaaaaaaaa'
+    b1 = b'lkjihgfedcba'
+
     assert(len(b0) == 16)
     input = b0 + b1
 
     cipher,iv = f1(input)
     cipher_original = copy(cipher)
 
-    print("\nOriginal ciphertext:")
-    printHEX(cipher)
-    print()
+    # =========================== attack ===========================
 
-    # attack ===========================
-
-    # Get the padding length by changing, from "left to right", the content of the block containing the padding,
+    # =========================== Get the padding length ===========================
+    #
+    # by changing, from "left to right", the content of the block containing the padding,
     # as soon as we modify one of the padding bytes the oracle will say the padding is wrong.
     start = 0
     i = 0
-
-    b0_backup = cipher[start:start+AES128_BLOCKSIZE]
+    plaintext = bytearray()
     while (f2(cipher, iv) == True):
-        last_byte = cipher[start + i]
         cipher[start + i] = 0xAA
         i += 1
         padding_length = AES128_BLOCKSIZE - i + 1
 
-    #cipher[start:start+AES128_BLOCKSIZE] = b0_backup
+    plaintext_len = len(cipher) - padding_length
     cipher = copy(cipher_original)
-
-    # Restore the first byte of padding
-    # cipher[start + i - 1] = last_byte
 
     print("Padding byte: 0x%02x\n" % padding_length)
     printHEX(cipher)
 
-    # Increase the padding value by 1 and inject it in the cipher.
-    new_padding = padding_length+1
+    # =========================== Find characters ===========================
+    #
+    original_padding = padding_length
+    new_padding = padding_length
+    block_offset = AES128_BLOCKSIZE
 
-    for i in range(padding_length):
-        cipher[AES128_BLOCKSIZE - i-1] ^= padding_length ^ new_padding
+    while plaintext_len > 0:
+        # Increase the padding value by 1 and the padding in the nth-1 cipher block.
+        previous_padding = new_padding
+        new_padding = new_padding + 1
 
-    print("Ciphertext after new padding insertion:")
-    printHEX(cipher)
-    f2(cipher, iv)
+        for i in range(previous_padding):
+            cipher[block_offset - i - 1] ^= previous_padding ^ new_padding
+            # cipher[block_offset - i - 1] ^= original_padding ^ new_padding
 
-    target_byte_pos = AES128_BLOCKSIZE - 1 - padding_length
-    for i in range (256):
-        cipher[target_byte_pos] = i
-        # If we found the the cipher byte value that validates the new padding"
-        if f2(cipher,iv) == True:
-            I2 = i ^ new_padding
-            plain_byte = I2 ^ cipher_original[target_byte_pos]
-            break
+        f2(cipher, iv)
 
-    # plain_byte = almost_plain_byte ^ last_byte
-    print("Plain byte: " , plain_byte)
+        target_byte_pos = AES128_BLOCKSIZE - 1 - previous_padding
+        for i in range (256):
+            cipher[target_byte_pos] = i
+            # If we found the the cipher byte value that validates the new padding"
+            if f2(cipher,iv) == True:
+                plaintext_len -= 1
+                I2 = i ^ new_padding
+                plain_byte = I2 ^ cipher_original[target_byte_pos]
+                break
+
+        plaintext += bytearray(plain_byte)
+        print("Plain byte: " , plain_byte)
+        #cipher = copy(cipher_original) # NO! we need to keep the injected new padding
+
+    print("plaintext: " , plaintext)
 
 if __name__ == "__main__":
     challenge_17()
