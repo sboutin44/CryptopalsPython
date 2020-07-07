@@ -106,6 +106,9 @@ def AES_CBC_decrypt(ciphertext,key,IV):
 
 def PKCS7_validate(input):
     padding_value = input[len(input)-1]
+    if padding_value > 0xFF:
+        return False
+
     for i in range(padding_value):
         if (input[len(input)-1-i] != padding_value):
             return False
