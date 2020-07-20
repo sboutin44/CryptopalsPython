@@ -49,15 +49,15 @@ Strings= [
     "MDAwMDA5aXRoIG15IHJhZy10b3AgZG93biBzbyBteSBoYWlyIGNhbiBibG93"]
 
 # Global key reused by the oracle
-# key = b'1111111111111111'
-key = get_random_bytes(16)
+key = b'1111111111111111'
+# key = get_random_bytes(16)
 
 def f1(input):
     """ CBC Encrypt one of the string in the Strings[] list."""
 
     plaintext = input
 
-    iv = b'0000000000000000'
+    iv = b'0000000000000001'
     # iv = b'\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31'
     # iv = b'1111111111111111'
     # iv =copy(key)
@@ -84,37 +84,37 @@ def attack(block0 , block1, padding_length, iv):
     cipher_l_original = copy(cipher_l)
     plaintext = []
     new_padding = padding_length
-    current_block_len = AES128_BLOCKSIZE - padding_length
+    remaining_bytes = AES128_BLOCKSIZE - padding_length
 
-    while current_block_len > 0:
+    while remaining_bytes > 0:
         # Increase the padding by 1 in the nth-1 cipher_l block.
         previous_padding = new_padding
         new_padding = previous_padding + 1
 
         # Insert this new padding in the cipher_l
-        for i in range(previous_padding):
+        # for i in range(previous_padding):
+        for i in range(new_padding):
             cipher_l[AES128_BLOCKSIZE - i - 1] ^= previous_padding ^ new_padding
 
         # Find the character
         target_byte_pos = AES128_BLOCKSIZE - new_padding
-        print("target_byte_pos: " , target_byte_pos)
+        # print("target_byte_pos: " , target_byte_pos)
         for i in range (256):
             cipher_l[target_byte_pos] = i
-            # print(i)
 
             # Check when the cipher_l byte value that validates the new padding"
             if f2(cipher_l, iv) == True:
-                current_block_len -= 1
+                remaining_bytes -= 1
                 plain_byte = i ^ new_padding ^ cipher_l_original[target_byte_pos]
                 plaintext.append(plain_byte)
-                print("found: " , bytes([plain_byte]))
+                # print("found: " , bytes([plain_byte]))
                 break
-        if i == 255:
-            print("character not find")
+        # if i == 255:
+            # print("character not find")
 
     plaintext.reverse()
     print("Last block: ", bytes(plaintext))
-    # print("Last block: ", b64decode(bytes(plaintext)))
+    print("Last block: ", b64decode(bytes(plaintext)))
 
     return plaintext
 
@@ -133,10 +133,12 @@ def challenge_17():
 
     b0 = b'aaaaaaaaaaaaaaaa'
     b1 = b'bbbbbbbbbbbbbbbb'
-    b2 = b'ccccccccccccc' #b'lkjihgfedcba'
+    b2 = b'cccccccccccccccc' #b'lkjihgfedcba'
+    b3 = b'dddddddddddddddd' #b'lkjihgfedcba'
+    b4 = b'eeeeeeeeeeee' #b'lkjihgfedcba'
 
-    input = b0 + b1 + b2
-    # input = plaintext # for the challenge
+    # input = b0 + b1 + b2 + b3 + b4
+    input = plaintext # for the challenge
 
     cipher,iv = f1(input) # generate the IV
     cipher_original = copy(cipher)
@@ -147,11 +149,9 @@ def challenge_17():
     # as soon as we modify one of the padding bytes the oracle will say the padding is wrong.
 
     i = 0
-    print(len(cipher))
     while (f2(cipher, iv) == True):
         pos = len(cipher) - 2*AES128_BLOCKSIZE + i
         cipher[pos] = 0xAA
-        # cipher[start + i] = 0xAA
         i += 1
     padding_length = AES128_BLOCKSIZE - i + 1
     cipher = copy(cipher_original) # Restore the original cipher
@@ -164,15 +164,21 @@ def challenge_17():
     iv2 = bytearray(iv)
 
     # for the challenge
-    # plaintext.append( attack(iv2[0:16], cipher[0:16], 0, iv2) )
+    plaintext.append( attack(iv2[0:16], cipher[0:16], 0, iv2) )
+    for i in range(0,len(cipher) - AES128_BLOCKSIZE, AES128_BLOCKSIZE):
+        b0 = cipher[ i: i + AES128_BLOCKSIZE]
+        b1 = cipher[ i + AES128_BLOCKSIZE : i + 2*AES128_BLOCKSIZE ]
+        plaintext.append( attack(b0,b1,0,iv2) )
+
     # for i in range(1,blocks-2):
     #     b0 = cipher[ i * AES128_BLOCKSIZE: (i+1) * AES128_BLOCKSIZE]
     #     b1 = cipher[ (i+1) * AES128_BLOCKSIZE : (i+2) *AES128_BLOCKSIZE]
-    #     attack(b0,b1,0,iv2)
+    #     plaintext.append( attack(b0,b1,0,iv2) )
 
-    attack(iv2[0:16], cipher[0:16], 0, iv2)
-    attack(cipher[0:16], cipher[16:32], 0, iv2)
-    attack(cipher[16:32],cipher[32:48],padding_length, iv2)
+    # attack(iv2[0:16], cipher[0:16], 0, iv2)
+    # attack(cipher[0:16], cipher[16:32], 0, iv2)
+    # attack(cipher[0:16], cipher[16:32], 0, iv2)
+    # attack(cipher[16:32],cipher[32:48],padding_length, iv2)
 
 if __name__ == "__main__":
     challenge_17()
