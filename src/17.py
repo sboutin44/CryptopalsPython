@@ -49,17 +49,21 @@ Strings= [
     "MDAwMDA5aXRoIG15IHJhZy10b3AgZG93biBzbyBteSBoYWlyIGNhbiBibG93"]
 
 # Global key reused by the oracle
+# key = b'1111111111111111'
 key = get_random_bytes(16)
-
 
 def f1(input):
     """ CBC Encrypt one of the string in the Strings[] list."""
 
     plaintext = input
 
-    iv = copy(key)
+    iv = b'0000000000000000'
+    # iv = b'\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31\x31'
+    # iv = b'1111111111111111'
+    # iv =copy(key)
 
     padded_plaintext = PKCS7_doPadding(plaintext)
+    assert(PKCS7_validate(padded_plaintext, AES128_BLOCKSIZE) == True )
     print(padded_plaintext)
     ciphertext = AES_CBC_encrypt(padded_plaintext,key,iv)
 
@@ -69,51 +73,50 @@ def f2(ciphertext,iv):
     ciphertext = bytes(ciphertext)
     deciphered = AES_CBC_decrypt(ciphertext,key,iv)
     # print("[f2]: deciphered: ", deciphered)
-    return PKCS7_validate(deciphered)
+    return PKCS7_validate(deciphered, AES128_BLOCKSIZE)
 
-def attack_block(block0 , block1, padding_length):
-    cipher = block0 + block1
-    cipher_original = copy(cipher)
+
+def attack(block0 , block1, padding_length, iv):
+    '''Recover a block of plaintext from 2 ciphertext blocks of AES128 blocksize.'''
+
+    assert (len(block0) == AES128_BLOCKSIZE and len(block1) == AES128_BLOCKSIZE)
+    cipher_l = block0 + block1
+    cipher_l_original = copy(cipher_l)
     plaintext = []
-
-    original_padding = padding_length
     new_padding = padding_length
-    block_count = int(len(cipher)/ AES128_BLOCKSIZE)
-
-    # for block_nb in range(block_count-1,-1,-1):
-    block_nb = block_count - 1
-    offset = block_nb * AES128_BLOCKSIZE
     current_block_len = AES128_BLOCKSIZE - padding_length
 
     while current_block_len > 0:
-        # Increase the padding by 1 in the nth-1 cipher block.
+        # Increase the padding by 1 in the nth-1 cipher_l block.
         previous_padding = new_padding
-        new_padding = new_padding + 1
+        new_padding = previous_padding + 1
 
-        # Insert this new padding in the cipher
+        # Insert this new padding in the cipher_l
         for i in range(previous_padding):
-            cipher[offset - i - 1] ^= previous_padding ^ new_padding
-
-        # Send it
-        f2(cipher, iv)
+            cipher_l[AES128_BLOCKSIZE - i - 1] ^= previous_padding ^ new_padding
 
         # Find the character
-        target_byte_pos = offset - 1 - previous_padding
+        target_byte_pos = AES128_BLOCKSIZE - new_padding
+        print("target_byte_pos: " , target_byte_pos)
         for i in range (256):
-            cipher[target_byte_pos] = i
-            # Check when the cipher byte value that validates the new padding"
-            if f2(cipher,iv) == True:
+            cipher_l[target_byte_pos] = i
+            # print(i)
+
+            # Check when the cipher_l byte value that validates the new padding"
+            if f2(cipher_l, iv) == True:
                 current_block_len -= 1
-                if block_nb > 0:
-                    plain_byte = i ^ new_padding ^ cipher_original[target_byte_pos]
-                # else:
-                    # plain_byte = i ^ new_padding ^ iv[target_byte_pos]
-                print(plain_byte)
+                plain_byte = i ^ new_padding ^ cipher_l_original[target_byte_pos]
                 plaintext.append(plain_byte)
+                print("found: " , bytes([plain_byte]))
                 break
+        if i == 255:
+            print("character not find")
 
     plaintext.reverse()
     print("Last block: ", bytes(plaintext))
+    # print("Last block: ", b64decode(bytes(plaintext)))
+
+    return plaintext
 
 
 def challenge_17():
@@ -123,100 +126,53 @@ def challenge_17():
     """
 
     #TODO: add when the attack is ready
-    # # Pick the random string:
-    # n = int(random() * 10)
-    # assert(n<10)
-    # plaintext = bytes(Strings[n],"ASCII")
+    # Pick the random string:
+    n = int(random() * 10)
+    assert(n<10)
+    plaintext = bytes(Strings[n],"ASCII")
 
     b0 = b'aaaaaaaaaaaaaaaa'
     b1 = b'bbbbbbbbbbbbbbbb'
-    b2 = b'lkjihgfedcba'
+    b2 = b'ccccccccccccc' #b'lkjihgfedcba'
 
     input = b0 + b1 + b2
+    # input = plaintext # for the challenge
 
-    cipher,iv = f1(input)
+    cipher,iv = f1(input) # generate the IV
     cipher_original = copy(cipher)
-
-    # =========================== attack ===========================
 
     # =========================== Get the padding length ===========================
     #
     # by changing, from "left to right", the content of the block containing the padding,
     # as soon as we modify one of the padding bytes the oracle will say the padding is wrong.
-    start = 0
+
     i = 0
-    block_count = int(len(cipher)/ AES128_BLOCKSIZE)
-    l = len(cipher)
-    plaintext = []
-
+    print(len(cipher))
     while (f2(cipher, iv) == True):
-        cipher[start + i] = 0xAA
+        pos = len(cipher) - 2*AES128_BLOCKSIZE + i
+        cipher[pos] = 0xAA
+        # cipher[start + i] = 0xAA
         i += 1
-    padding_length = AES128_BLOCKSIZE - (i%AES128_BLOCKSIZE) + 1
-
-    plaintext_len = len(cipher) - padding_length
-    cipher = copy(cipher_original)
+    padding_length = AES128_BLOCKSIZE - i + 1
+    cipher = copy(cipher_original) # Restore the original cipher
 
     print("Padding byte: 0x%02x\n" % padding_length)
     printHEX(cipher)
 
-    # =========================== Find characters ===========================
-    #
-    original_padding = padding_length
-    new_padding = padding_length
+    blocks =  len(cipher) / AES128_BLOCKSIZE
+    plaintext = []
+    iv2 = bytearray(iv)
 
-    # for block_nb in range(block_count-1,-1,-1):
-    block_nb = block_count - 1
-    offset = block_nb * AES128_BLOCKSIZE
-    current_block_len = AES128_BLOCKSIZE - padding_length
+    # for the challenge
+    # plaintext.append( attack(iv2[0:16], cipher[0:16], 0, iv2) )
+    # for i in range(1,blocks-2):
+    #     b0 = cipher[ i * AES128_BLOCKSIZE: (i+1) * AES128_BLOCKSIZE]
+    #     b1 = cipher[ (i+1) * AES128_BLOCKSIZE : (i+2) *AES128_BLOCKSIZE]
+    #     attack(b0,b1,0,iv2)
 
-    while current_block_len > 0:
-        # Increase the padding by 1 in the nth-1 cipher block.
-        previous_padding = new_padding
-        new_padding = new_padding + 1
-
-        # Insert this new padding in the cipher
-        for i in range(previous_padding):
-            cipher[offset - i - 1] ^= previous_padding ^ new_padding
-
-        # Send it
-        f2(cipher, iv)
-
-        # Find the character
-        target_byte_pos = offset - 1 - previous_padding
-        for i in range (256):
-            cipher[target_byte_pos] = i
-            # Check when the cipher byte value that validates the new padding"
-            if f2(cipher,iv) == True:
-                current_block_len -= 1
-                if block_nb > 0:
-                    plain_byte = i ^ new_padding ^ cipher_original[target_byte_pos]
-                else:
-                    plain_byte = i ^ new_padding ^ iv[target_byte_pos]
-                print(plain_byte)
-                plaintext.append(plain_byte)
-                break
-
-    plaintext.reverse()
-    print("Last block: ", bytes(plaintext))
-        # print("Last block: " , plaintext.reverse())
-
-    # Decrypt remaining blocks:
-
+    attack(iv2[0:16], cipher[0:16], 0, iv2)
+    attack(cipher[0:16], cipher[16:32], 0, iv2)
+    attack(cipher[16:32],cipher[32:48],padding_length, iv2)
 
 if __name__ == "__main__":
-    #challenge_17()
-
-    b0 = b'aaaaaaaaaaaaaaaa'
-    b1 = b'bbbbbbbbbbbbbbbb'
-    b2 = b'lkjihgfedcba'
-
-    input = b0 + b1 + b2
-
-    cipher,iv = f1(input)
-    cipher_original = copy(cipher)
-
-    iv2 = bytearray(iv)
-    attack_block(iv2[0:16], cipher[0:16], 0)
-    attack_block(cipher[0:16], cipher[16:32], 0)
-    attack_block(cipher[16:32],cipher[32:48],4)
+    challenge_17()
