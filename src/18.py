@@ -22,18 +22,10 @@
 # // holders shall not be used in advertising or otherwise to promote the sale,
 # // use or other dealings in this Software without prior written authorization.
 
-from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES
-from copy import copy
-from random import random
 from base64 import *
 
 # My Cryptopals functions
-from block_ciphers import PKCS7_doPadding
-from block_ciphers import PKCS7_validate
-from block_ciphers import AES_CBC_encrypt
-from block_ciphers import AES_CBC_decrypt
-from block_ciphers import printHEX
 from block_ciphers import AES128_BLOCKSIZE
 
 def bytes_to_int(b,order):
@@ -76,26 +68,19 @@ def AES_CTR_enc(key,nounce, plain):
 
     # Generates the keysteam. Nounce is on 7 bytes, counter on 9.
     AES_cipher = AES.new(bytes(key,"ASCII"), AES.MODE_ECB)
-    block = bytearray(7)
+    block = bytearray(16)
     keysteam = bytearray([])
     nounce_as_block = int_to_bytes(nounce,7)
     nb = int(l / blocksize) + 1
     for counter in range (nb):
-        # counter_as_block = int_to_bytes(counter,9)
         block[0:9] = int_to_bytes(counter,9)
         block[9:16] = nounce_as_block
 
         # AES block encrpytion
-        block = AES_cipher.encrypt(bytes(block))
-        block = bytearray(block)
+        block = bytearray(AES_cipher.encrypt(bytes(block)))
         keysteam += block
 
-    print("\n")
-    print(keysteam)
-    print("\n")
-
-    # Encryption
-    # plain = bytearray(plain,"ASCII")
+    # Input encryption
     ciphertext = bytearray(l)
     for i in range(l):
         ciphertext[i] += plain[i] ^ keysteam[i]
@@ -106,25 +91,14 @@ def AES_CTR_dec(key,nounce,cipher):
     return AES_CTR_enc(key, nounce, cipher)
 
 def challenge_18():
-    # b = bytearray([\x00,\x00,\x00,\x00,\x00,\x00,\x00,\x00])
-    # b = bytearray([0,0,0,0,0,0,0,1])
-    # c = bytes_to_int(b,'big')
-    # print(c)
-    #
-    # print(int_to_bytes(c,7))
-
     ciphertext = "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ=="
-    c = b64decode(bytes(ciphertext,"ASCII"))
-    c = bytearray(c)
-    plain = "Now that the party is jumping. I'm cooking MC's like a pound of bacon."
+    c = bytearray(b64decode(bytes(ciphertext,"ASCII")))
     key = 'YELLOW SUBMARINE'
     nounce = 0
 
-    # plain = bytearray(plain, "ASCII")
-    # AES_CTR_dec(key, nounce, plain)
-
-    p = AES_CTR_dec(key,nounce,c)
-    print(p)
+    plain_barray = AES_CTR_dec(key,nounce,c)
+    plain = str(plain_barray,"ASCII")
+    print(plain)
 
 if __name__ == "__main__":
     challenge_18()
