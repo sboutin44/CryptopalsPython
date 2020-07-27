@@ -23,6 +23,7 @@
 # // use or other dealings in this Software without prior written authorization.
 
 from Crypto.Random import get_random_bytes
+from Crypto.Cipher import AES
 from copy import copy
 from random import random
 from base64 import *
@@ -34,7 +35,6 @@ from block_ciphers import AES_CBC_encrypt
 from block_ciphers import AES_CBC_decrypt
 from block_ciphers import printHEX
 from block_ciphers import AES128_BLOCKSIZE
-
 
 def bytes_to_int(b,order):
     result = 0
@@ -70,10 +70,12 @@ def AES_CTR_enc(key,nounce, plain):
     :return: encrypted plain.
     """
 
+    assert(type(plain) == bytearray)
     blocksize = AES128_BLOCKSIZE
     l = len(plain)
 
     # Generates the keysteam. Nounce is on 7 bytes, counter on 9.
+    AES_cipher = AES.new(bytes(key,"ASCII"), AES.MODE_ECB)
     block = bytearray(7)
     keysteam = bytearray([])
     nounce_as_block = int_to_bytes(nounce,7)
@@ -82,14 +84,26 @@ def AES_CTR_enc(key,nounce, plain):
         # counter_as_block = int_to_bytes(counter,9)
         block[0:9] = int_to_bytes(counter,9)
         block[9:16] = nounce_as_block
+
+        # AES block encrpytion
+        block = AES_cipher.encrypt(bytes(block))
+        block = bytearray(block)
         keysteam += block
 
-    plain = bytearray(plain,"ASCII")
+    print("\n")
+    print(keysteam)
+    print("\n")
+
+    # Encryption
+    # plain = bytearray(plain,"ASCII")
     ciphertext = bytearray(l)
     for i in range(l):
         ciphertext[i] += plain[i] ^ keysteam[i]
 
     return ciphertext
+
+def AES_CTR_dec(key,nounce,cipher):
+    return AES_CTR_enc(key, nounce, cipher)
 
 def challenge_18():
     # b = bytearray([\x00,\x00,\x00,\x00,\x00,\x00,\x00,\x00])
@@ -99,11 +113,18 @@ def challenge_18():
     #
     # print(int_to_bytes(c,7))
 
+    ciphertext = "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ=="
+    c = b64decode(bytes(ciphertext,"ASCII"))
+    c = bytearray(c)
     plain = "Now that the party is jumping. I'm cooking MC's like a pound of bacon."
     key = 'YELLOW SUBMARINE'
     nounce = 0
 
-    AES_CTR_enc(key,nounce,plain,)
+    # plain = bytearray(plain, "ASCII")
+    # AES_CTR_dec(key, nounce, plain)
+
+    p = AES_CTR_dec(key,nounce,c)
+    print(p)
 
 if __name__ == "__main__":
     challenge_18()
