@@ -102,10 +102,10 @@ class Base64:
 
             decoded += e0 + e1 + e2
 
-        if s[-1:] == "=":
-            decoded = decoded[:-1]
         if s[-2:] == "==":
             decoded = decoded[:-2]
+        elif s[-1:] == "=":
+            decoded = decoded[:-1]
 
         return decoded
 
